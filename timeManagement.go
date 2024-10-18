@@ -15,16 +15,23 @@ var (
 
 // TimeProvider 提供所有時間相關的操作介面
 type TimeProvider interface {
+	// 返回UTC時間
 	Now() time.Time
+	// 返回特定時區的時間
+	NowInZone(location *time.Location) time.Time
 	Since(t time.Time) time.Duration
 	Until(t time.Time) time.Duration
 	Sleep(d time.Duration)
 	After(d time.Duration) <-chan time.Time
 	Parse(layout, value string) (time.Time, error)
+	ParseInLocation(layout, value string, loc *time.Location) (time.Time, error)
 	Format(t time.Time, layout string) string
+	// 將任何時間轉換為UTC
+	ToUTC(t time.Time) time.Time
+	// 將UTC時間轉換為指定時區
+	ToZone(t time.Time, location *time.Location) time.Time
 }
 
-// realTimeProvider 實際時間的實現
 type realTimeProvider struct{}
 
 func (r *realTimeProvider) Now() time.Time {
@@ -32,24 +39,28 @@ func (r *realTimeProvider) Now() time.Time {
 	defer mockTimeLock.RUnlock()
 
 	if mockTime != nil {
-		return *mockTime
+		return mockTime.UTC()
 	}
 
 	if timeScale != 1.0 {
 		realElapsed := time.Since(scaleStart)
 		scaledElapsed := time.Duration(float64(realElapsed) * timeScale)
-		return baseTime.Add(scaledElapsed)
+		return baseTime.Add(scaledElapsed).UTC()
 	}
 
-	return time.Now()
+	return time.Now().UTC()
+}
+
+func (r *realTimeProvider) NowInZone(location *time.Location) time.Time {
+	return r.Now().In(location)
 }
 
 func (r *realTimeProvider) Since(t time.Time) time.Duration {
-	return r.Now().Sub(t)
+	return r.Now().Sub(t.UTC())
 }
 
 func (r *realTimeProvider) Until(t time.Time) time.Duration {
-	return t.Sub(r.Now())
+	return t.UTC().Sub(r.Now())
 }
 
 func (r *realTimeProvider) Sleep(d time.Duration) {
@@ -70,11 +81,31 @@ func (r *realTimeProvider) After(d time.Duration) <-chan time.Time {
 }
 
 func (r *realTimeProvider) Parse(layout, value string) (time.Time, error) {
-	return time.Parse(layout, value)
+	t, err := time.Parse(layout, value)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t.UTC(), nil
+}
+
+func (r *realTimeProvider) ParseInLocation(layout, value string, loc *time.Location) (time.Time, error) {
+	t, err := time.ParseInLocation(layout, value, loc)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t.UTC(), nil
 }
 
 func (r *realTimeProvider) Format(t time.Time, layout string) string {
-	return t.Format(layout)
+	return t.UTC().Format(layout)
+}
+
+func (r *realTimeProvider) ToUTC(t time.Time) time.Time {
+	return t.UTC()
+}
+
+func (r *realTimeProvider) ToZone(t time.Time, location *time.Location) time.Time {
+	return t.In(location)
 }
 
 var defaultProvider TimeProvider = &realTimeProvider{}
@@ -85,9 +116,6 @@ func GetProvider() TimeProvider {
 }
 
 // SetTimeScale 設置時間加速比例
-// scale > 1.0 表示時間加速，例如 2.0 表示時間流逝速度是正常的兩倍
-// scale < 1.0 表示時間減速，例如 0.5 表示時間流逝速度是正常的一半
-// scale = 1.0 表示正常時間流逝
 func SetTimeScale(scale float64) {
 	if scale <= 0 {
 		panic("Time scale must be positive")
@@ -96,33 +124,29 @@ func SetTimeScale(scale float64) {
 	mockTimeLock.Lock()
 	defer mockTimeLock.Unlock()
 
-	// 設置新的時間比例前，先保存當前時間作為基準點
 	baseTime = defaultProvider.Now()
-	scaleStart = time.Now()
+	scaleStart = time.Now().UTC()
 	timeScale = scale
 }
 
-// GetTimeScale 獲取當前時間加速比例
 func GetTimeScale() float64 {
 	mockTimeLock.RLock()
 	defer mockTimeLock.RUnlock()
 	return timeScale
 }
 
-// ResetTimeScale 重置時間比例為正常速度
 func ResetTimeScale() {
 	SetTimeScale(1.0)
 }
 
-// SetMockTime 設置模擬時間（用於測試）
 func SetMockTime(t time.Time) {
 	mockTimeLock.Lock()
 	defer mockTimeLock.Unlock()
-	mockTime = &t
-	timeScale = 1.0 // 重置時間比例
+	utcTime := t.UTC()
+	mockTime = &utcTime
+	timeScale = 1.0
 }
 
-// ClearMockTime 清除模擬時間
 func ClearMockTime() {
 	mockTimeLock.Lock()
 	defer mockTimeLock.Unlock()
