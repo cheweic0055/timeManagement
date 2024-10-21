@@ -15,21 +15,42 @@ var (
 
 // TimeProvider 提供所有時間相關的操作介面
 type TimeProvider interface {
-	// 返回UTC時間
+
+	// 返回UTC時間，支持時間加速
 	Now() time.Time
+
 	// 返回特定時區的時間
 	NowInZone(location *time.Location) time.Time
+
+	// 當前時間 - 指定時間
 	Since(t time.Time) time.Duration
+
+	// 指定時間 - 當前時間
 	Until(t time.Time) time.Duration
+
+	// 睡眠指定時間，支持時間加速
 	Sleep(d time.Duration)
+
+	// 返回一個通道，指定時間後會發送一個時間，支持時間加速
 	After(d time.Duration) <-chan time.Time
+
+	// 解析時間字符串，返回UTC時間
 	Parse(layout, value string) (time.Time, error)
+
+	// 解析指定時區的時間字符串，返回UTC時間
 	ParseInLocation(layout, value string, loc *time.Location) (time.Time, error)
+
+	// 格式化時間為字符串
 	Format(t time.Time, layout string) string
+
 	// 將任何時間轉換為UTC
 	ToUTC(t time.Time) time.Time
+
 	// 將UTC時間轉換為指定時區
 	ToZone(t time.Time, location *time.Location) time.Time
+
+	// 將時間轉換為Unix時間戳
+	ToUnix(t time.Time) int64
 }
 
 type realTimeProvider struct{}
@@ -106,6 +127,10 @@ func (r *realTimeProvider) ToUTC(t time.Time) time.Time {
 
 func (r *realTimeProvider) ToZone(t time.Time, location *time.Location) time.Time {
 	return t.In(location)
+}
+
+func (r *realTimeProvider) ToUnix(t time.Time) int64 {
+	return t.UTC().Unix()
 }
 
 var defaultProvider TimeProvider = &realTimeProvider{}
