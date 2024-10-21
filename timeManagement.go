@@ -51,6 +51,9 @@ type TimeProvider interface {
 
 	// 將時間轉換為Unix時間戳
 	ToUnix(t time.Time) int64
+
+	// 將時間轉換為Unix毫秒時間戳
+	ToUnixMilli(t time.Time) int64
 }
 
 type realTimeProvider struct{}
@@ -131,6 +134,10 @@ func (r *realTimeProvider) ToZone(t time.Time, location *time.Location) time.Tim
 
 func (r *realTimeProvider) ToUnix(t time.Time) int64 {
 	return t.UTC().Unix()
+}
+
+func (r *realTimeProvider) ToUnixMilli(t time.Time) int64 {
+	return t.UTC().UnixMilli()
 }
 
 var defaultProvider TimeProvider = &realTimeProvider{}
