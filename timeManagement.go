@@ -145,11 +145,13 @@ func SetTimeScale(scale float64) {
 	if scale <= 0 {
 		panic("Time scale must be positive")
 	}
+	// 先獲取當前時間
+	currentTime := defaultProvider.Now()
 
 	mockTimeLock.Lock()
 	defer mockTimeLock.Unlock()
 
-	baseTime = defaultProvider.Now()
+	baseTime = currentTime
 	scaleStart = time.Now().UTC()
 	timeScale = scale
 }
