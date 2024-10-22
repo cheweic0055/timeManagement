@@ -53,16 +53,16 @@ type TimeProvider interface {
 	Format(t time.Time, layout string) string
 
 	// 將任何時間轉換為UTC
-	ToUTC(t time.Time) time.Time
+	UTC(t time.Time) time.Time
 
 	// 將UTC時間轉換為指定時區
-	ToZone(t time.Time, location *time.Location) time.Time
+	In(t time.Time, location *time.Location) time.Time
 
 	// 將時間轉換為Unix時間戳
-	ToUnix(t time.Time) int64
+	Unix(t time.Time) int64
 
 	// 將時間轉換為Unix毫秒時間戳
-	ToUnixMilli(t time.Time) int64
+	UnixMilli(t time.Time) int64
 }
 
 type realTimeProvider struct{}
@@ -157,19 +157,19 @@ func (r *realTimeProvider) Format(t time.Time, layout string) string {
 	return t.UTC().Format(layout)
 }
 
-func (r *realTimeProvider) ToUTC(t time.Time) time.Time {
+func (r *realTimeProvider) UTC(t time.Time) time.Time {
 	return t.UTC()
 }
 
-func (r *realTimeProvider) ToZone(t time.Time, location *time.Location) time.Time {
+func (r *realTimeProvider) In(t time.Time, location *time.Location) time.Time {
 	return t.In(location)
 }
 
-func (r *realTimeProvider) ToUnix(t time.Time) int64 {
+func (r *realTimeProvider) Unix(t time.Time) int64 {
 	return t.UTC().Unix()
 }
 
-func (r *realTimeProvider) ToUnixMilli(t time.Time) int64 {
+func (r *realTimeProvider) UnixMilli(t time.Time) int64 {
 	return t.UTC().UnixMilli()
 }
 
