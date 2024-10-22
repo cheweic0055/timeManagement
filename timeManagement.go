@@ -175,12 +175,11 @@ func (r *realTimeProvider) UnixMilli(t time.Time) int64 {
 
 var defaultProvider TimeProvider = &realTimeProvider{}
 
-// GetProvider 返回當前的時間提供者
 func GetProvider() TimeProvider {
 	return defaultProvider
 }
 
-// SetTimeScale 設置時間加速比例
+// 設置時間加速比例
 func SetTimeScale(scale float64) {
 	if scale <= 0 {
 		panic("Time scale must be positive")
@@ -206,6 +205,7 @@ func ResetTimeScale() {
 	SetTimeScale(1.0)
 }
 
+// 設置模擬時間
 func SetMockTime(t time.Time) {
 	mockTimeLock.Lock()
 	defer mockTimeLock.Unlock()
