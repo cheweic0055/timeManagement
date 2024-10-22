@@ -5,6 +5,15 @@ import (
 	"time"
 )
 
+// 常用的時間格式常量
+const (
+	DateFormat          = "2006-01-02"
+	TimeFormat          = "15:04:05"
+	DateTimeFormat      = "2006-01-02 15:04:05"
+	DateTimeFormatTZ    = "2006-01-02T15:04:05Z07:00"
+	DateTimeFormatMilli = "2006-01-02 15:04:05.000"
+)
+
 var (
 	mockTime     *time.Time
 	mockTimeLock sync.RWMutex
@@ -80,10 +89,24 @@ func (r *realTimeProvider) NowInZone(location *time.Location) time.Time {
 }
 
 func (r *realTimeProvider) Since(t time.Time) time.Duration {
+	mockTimeLock.RLock()
+	defer mockTimeLock.RUnlock()
+
+	if mockTime != nil {
+		return mockTime.Sub(t.UTC())
+	}
+
 	return r.Now().Sub(t.UTC())
 }
 
 func (r *realTimeProvider) Until(t time.Time) time.Duration {
+	mockTimeLock.RLock()
+	defer mockTimeLock.RUnlock()
+
+	if mockTime != nil {
+		return t.UTC().Sub(*mockTime)
+	}
+
 	return t.UTC().Sub(r.Now())
 }
 
@@ -97,6 +120,16 @@ func (r *realTimeProvider) Sleep(d time.Duration) {
 }
 
 func (r *realTimeProvider) After(d time.Duration) <-chan time.Time {
+	mockTimeLock.RLock()
+	defer mockTimeLock.RUnlock()
+
+	if mockTime != nil {
+		// 模擬定時器，立即返回一個已經過期的通道
+		ch := make(chan time.Time, 1)
+		ch <- *mockTime
+		return ch
+	}
+
 	if timeScale != 1.0 {
 		adjustedDuration := time.Duration(float64(d) / timeScale)
 		return time.After(adjustedDuration)
@@ -186,12 +219,3 @@ func ClearMockTime() {
 	defer mockTimeLock.Unlock()
 	mockTime = nil
 }
-
-// 常用的時間格式常量
-const (
-	DateFormat          = "2006-01-02"
-	TimeFormat          = "15:04:05"
-	DateTimeFormat      = "2006-01-02 15:04:05"
-	DateTimeFormatTZ    = "2006-01-02T15:04:05Z07:00"
-	DateTimeFormatMilli = "2006-01-02 15:04:05.000"
-)
