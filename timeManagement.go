@@ -15,11 +15,13 @@ const (
 )
 
 var (
-	mockTime     *time.Time
-	mockTimeLock sync.RWMutex
-	timeScale    float64 = 1.0
-	baseTime     time.Time
-	scaleStart   time.Time
+	mockTime      *time.Time
+	mockStartTime time.Time
+	mockBaseTime  time.Time
+	mockTimeLock  sync.RWMutex
+	timeScale     float64 = 1.0
+	baseTime      time.Time
+	scaleStart    time.Time
 )
 
 // TimeProvider 提供所有時間相關的操作介面
@@ -72,7 +74,12 @@ func (r *realTimeProvider) Now() time.Time {
 	defer mockTimeLock.RUnlock()
 
 	if mockTime != nil {
-		return mockTime.UTC()
+		// 計算從設置模擬時間開始經過的時間
+		elapsed := time.Since(mockStartTime)
+		if timeScale != 1.0 {
+			elapsed = time.Duration(float64(elapsed) * timeScale)
+		}
+		return mockBaseTime.Add(elapsed).UTC()
 	}
 
 	if timeScale != 1.0 {
@@ -89,24 +96,10 @@ func (r *realTimeProvider) NowInZone(location *time.Location) time.Time {
 }
 
 func (r *realTimeProvider) Since(t time.Time) time.Duration {
-	mockTimeLock.RLock()
-	defer mockTimeLock.RUnlock()
-
-	if mockTime != nil {
-		return mockTime.Sub(t.UTC())
-	}
-
 	return r.Now().Sub(t.UTC())
 }
 
 func (r *realTimeProvider) Until(t time.Time) time.Duration {
-	mockTimeLock.RLock()
-	defer mockTimeLock.RUnlock()
-
-	if mockTime != nil {
-		return t.UTC().Sub(*mockTime)
-	}
-
 	return t.UTC().Sub(r.Now())
 }
 
@@ -120,16 +113,6 @@ func (r *realTimeProvider) Sleep(d time.Duration) {
 }
 
 func (r *realTimeProvider) After(d time.Duration) <-chan time.Time {
-	mockTimeLock.RLock()
-	defer mockTimeLock.RUnlock()
-
-	if mockTime != nil {
-		// 模擬定時器，立即返回一個已經過期的通道
-		ch := make(chan time.Time, 1)
-		ch <- *mockTime
-		return ch
-	}
-
 	if timeScale != 1.0 {
 		adjustedDuration := time.Duration(float64(d) / timeScale)
 		return time.After(adjustedDuration)
@@ -190,6 +173,13 @@ func SetTimeScale(scale float64) {
 	mockTimeLock.Lock()
 	defer mockTimeLock.Unlock()
 
+	if mockTime != nil {
+		// 更新模擬時間的基準時間和開始時間
+		elapsed := time.Since(mockStartTime)
+		mockBaseTime = mockBaseTime.Add(elapsed)
+		mockStartTime = time.Now()
+	}
+
 	baseTime = currentTime
 	scaleStart = time.Now().UTC()
 	timeScale = scale
@@ -201,7 +191,7 @@ func GetTimeScale() float64 {
 	return timeScale
 }
 
-func ResetTimeScale() {
+func ClearTimeScale() {
 	SetTimeScale(1.0)
 }
 
@@ -210,6 +200,8 @@ func SetMockTime(t time.Time) {
 	mockTimeLock.Lock()
 	defer mockTimeLock.Unlock()
 	utcTime := t.UTC()
+	mockBaseTime = utcTime
+	mockStartTime = time.Now()
 	mockTime = &utcTime
 	timeScale = 1.0
 }
