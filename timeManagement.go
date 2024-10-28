@@ -210,4 +210,5 @@ func ClearMockTime() {
 	mockTimeLock.Lock()
 	defer mockTimeLock.Unlock()
 	mockTime = nil
+	timeScale = 1.0
 }
