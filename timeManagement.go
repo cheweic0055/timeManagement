@@ -14,16 +14,6 @@ const (
 	DateTimeFormatMilli = "2006-01-02 15:04:05.000"
 )
 
-var (
-	mockTime      *time.Time
-	mockStartTime time.Time
-	mockBaseTime  time.Time
-	mockTimeLock  sync.RWMutex
-	timeScale     float64 = 1.0
-	baseTime      time.Time
-	scaleStart    time.Time
-)
-
 // TimeProvider 提供所有時間相關的操作介面
 type TimeProvider interface {
 
@@ -65,27 +55,65 @@ type TimeProvider interface {
 
 	// 將時間轉換為Unix毫秒時間戳
 	UnixMilli(t time.Time) int64
+
+	// 設置時間加速比例
+	SetTimeScale(scale float64)
+
+	// 獲取時間加速比例
+	GetTimeScale() float64
+
+	// 清除時間加速比例
+	ClearTimeScale()
+
+	// 設置模擬時間
+	SetMockTime(t time.Time)
+
+	// 清除模擬時間
+	ClearMockTime()
 }
 
-type realTimeProvider struct{}
+type realTimeProvider struct {
+	mockTime      *time.Time
+	mockStartTime time.Time
+	mockBaseTime  time.Time
+	mockTimeLock  sync.RWMutex
+	timeScale     float64
+	baseTime      time.Time
+	scaleStart    time.Time
+}
+
+var (
+	instance *realTimeProvider
+	once     sync.Once
+)
+
+// GetProvider 返回 TimeProvider 的單例實例
+func GetProvider() TimeProvider {
+	once.Do(func() {
+		instance = &realTimeProvider{
+			timeScale: 1.0,
+		}
+	})
+	return instance
+}
 
 func (r *realTimeProvider) Now() time.Time {
-	mockTimeLock.RLock()
-	defer mockTimeLock.RUnlock()
+	r.mockTimeLock.RLock()
+	defer r.mockTimeLock.RUnlock()
 
-	if mockTime != nil {
+	if r.mockTime != nil {
 		// 計算從設置模擬時間開始經過的時間
-		elapsed := time.Since(mockStartTime)
-		if timeScale != 1.0 {
-			elapsed = time.Duration(float64(elapsed) * timeScale)
+		elapsed := time.Since(r.mockStartTime)
+		if r.timeScale != 1.0 {
+			elapsed = time.Duration(float64(elapsed) * r.timeScale)
 		}
-		return mockBaseTime.Add(elapsed).UTC()
+		return r.mockBaseTime.Add(elapsed).UTC()
 	}
 
-	if timeScale != 1.0 {
-		realElapsed := time.Since(scaleStart)
-		scaledElapsed := time.Duration(float64(realElapsed) * timeScale)
-		return baseTime.Add(scaledElapsed).UTC()
+	if r.timeScale != 1.0 {
+		realElapsed := time.Since(r.scaleStart)
+		scaledElapsed := time.Duration(float64(realElapsed) * r.timeScale)
+		return r.baseTime.Add(scaledElapsed).UTC()
 	}
 
 	return time.Now().UTC()
@@ -104,8 +132,8 @@ func (r *realTimeProvider) Until(t time.Time) time.Duration {
 }
 
 func (r *realTimeProvider) Sleep(d time.Duration) {
-	if timeScale != 1.0 {
-		adjustedDuration := time.Duration(float64(d) / timeScale)
+	if r.timeScale != 1.0 {
+		adjustedDuration := time.Duration(float64(d) / r.timeScale)
 		time.Sleep(adjustedDuration)
 		return
 	}
@@ -113,8 +141,8 @@ func (r *realTimeProvider) Sleep(d time.Duration) {
 }
 
 func (r *realTimeProvider) After(d time.Duration) <-chan time.Time {
-	if timeScale != 1.0 {
-		adjustedDuration := time.Duration(float64(d) / timeScale)
+	if r.timeScale != 1.0 {
+		adjustedDuration := time.Duration(float64(d) / r.timeScale)
 		return time.After(adjustedDuration)
 	}
 	return time.After(d)
@@ -156,59 +184,51 @@ func (r *realTimeProvider) UnixMilli(t time.Time) int64 {
 	return t.UTC().UnixMilli()
 }
 
-var defaultProvider TimeProvider = &realTimeProvider{}
-
-func GetProvider() TimeProvider {
-	return defaultProvider
-}
-
-// 設置時間加速比例
-func SetTimeScale(scale float64) {
+func (r *realTimeProvider) SetTimeScale(scale float64) {
 	if scale <= 0 {
 		panic("Time scale must be positive")
 	}
 	// 先獲取當前時間
-	currentTime := defaultProvider.Now()
+	currentTime := r.Now()
 
-	mockTimeLock.Lock()
-	defer mockTimeLock.Unlock()
+	r.mockTimeLock.Lock()
+	defer r.mockTimeLock.Unlock()
 
-	if mockTime != nil {
+	if r.mockTime != nil {
 		// 更新模擬時間的基準時間和開始時間
-		elapsed := time.Since(mockStartTime)
-		mockBaseTime = mockBaseTime.Add(elapsed)
-		mockStartTime = time.Now()
+		elapsed := time.Since(r.mockStartTime)
+		r.mockBaseTime = r.mockBaseTime.Add(elapsed)
+		r.mockStartTime = time.Now()
 	}
 
-	baseTime = currentTime
-	scaleStart = time.Now().UTC()
-	timeScale = scale
+	r.baseTime = currentTime
+	r.scaleStart = time.Now().UTC()
+	r.timeScale = scale
 }
 
-func GetTimeScale() float64 {
-	mockTimeLock.RLock()
-	defer mockTimeLock.RUnlock()
-	return timeScale
+func (r *realTimeProvider) GetTimeScale() float64 {
+	r.mockTimeLock.RLock()
+	defer r.mockTimeLock.RUnlock()
+	return r.timeScale
 }
 
-func ClearTimeScale() {
-	SetTimeScale(1.0)
+func (r *realTimeProvider) ClearTimeScale() {
+	r.SetTimeScale(1.0)
 }
 
-// 設置模擬時間
-func SetMockTime(t time.Time) {
-	mockTimeLock.Lock()
-	defer mockTimeLock.Unlock()
+func (r *realTimeProvider) SetMockTime(t time.Time) {
+	r.mockTimeLock.Lock()
+	defer r.mockTimeLock.Unlock()
 	utcTime := t.UTC()
-	mockBaseTime = utcTime
-	mockStartTime = time.Now()
-	mockTime = &utcTime
-	timeScale = 1.0
+	r.mockBaseTime = utcTime
+	r.mockStartTime = time.Now()
+	r.mockTime = &utcTime
+	r.timeScale = 1.0
 }
 
-func ClearMockTime() {
-	mockTimeLock.Lock()
-	defer mockTimeLock.Unlock()
-	mockTime = nil
-	timeScale = 1.0
+func (r *realTimeProvider) ClearMockTime() {
+	r.mockTimeLock.Lock()
+	defer r.mockTimeLock.Unlock()
+	r.mockTime = nil
+	r.timeScale = 1.0
 }
