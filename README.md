@@ -95,7 +95,7 @@ TimeProvider 介面
 
 ## 系統架構圖
 
-![系統架構圖]([https://git-golang.yile808.com/web3/common/time-management/-/raw/develop/docs/img/SystemArchitectureDiagram.png?ref_type=heads&inline=false](https://github.com/cheweic0055/timeManagement/blob/main/docs/img/SystemArchitectureDiagram.png))
+![系統架構圖](https://github.com/cheweic0055/timeManagement/blob/main/docs/img/SystemArchitectureDiagram.png)
 
 
 
